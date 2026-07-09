@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sky Runner 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; }
+  body { background: #0a0a1a; touch-action: none; }
+  #game-canvas { display: block; width: 100%; height: 100%; }
+
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 16px 20px; pointer-events: none; z-index: 10;
+  }
+  .hud-box {
+    background: rgba(10, 10, 30, 0.55);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px; padding: 8px 16px;
+    color: #fff; backdrop-filter: blur(6px);
+  }
+  .hud-label { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; }
+  .hud-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #coin-box .hud-value { color: #ffd54a; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(5, 5, 20, 0.6); backdrop-filter: blur(4px);
+    color: #fff; text-align: center; transition: opacity 0.3s;
+    overflow-y: auto; padding: 28px 0;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+  .title {
+    font-size: clamp(40px, 9vw, 72px); font-weight: 900;
+    background: linear-gradient(135deg, #7dd8ff, #c86bff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 8px; letter-spacing: 2px;
+  }
+  .subtitle { font-size: 18px; opacity: 0.85; margin-bottom: 28px; }
+  .btn {
+    font-size: 22px; font-weight: 700; color: #0a0a1a;
+    background: linear-gradient(135deg, #7dd8ff, #5ab8ff);
+    border: none; border-radius: 999px; padding: 14px 48px;
+    cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 6px 24px rgba(90, 184, 255, 0.4);
+  }
+  .btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 10px 32px rgba(90, 184, 255, 0.55); }
+  .controls-hint {
+    margin-top: 32px; font-size: 14px; opacity: 0.7; line-height: 1.9;
+  }
+  .key {
+    display: inline-block; background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25); border-radius: 6px;
+    padding: 2px 10px; margin: 0 3px; font-family: monospace; font-size: 13px;
+  }
+  #hp-wrap {
+    position: fixed; top: 86px; left: 50%; transform: translateX(-50%);
+    width: min(340px, 60vw); z-index: 10; pointer-events: none;
+  }
+  #hp-bar {
+    height: 16px; border-radius: 9px; overflow: hidden;
+    background: rgba(10, 10, 30, 0.55);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  #hp-fill {
+    height: 100%; width: 100%; background: hsl(115, 75%, 50%);
+    border-radius: 8px; transition: width 0.15s linear;
+  }
+  #hp-fill.hp-low { animation: hp-flash 0.5s infinite alternate; }
+  @keyframes hp-flash { from { filter: brightness(0.7); } to { filter: brightness(1.4); } }
+  #hp-text {
+    text-align: center; color: #fff; font-size: 11px; font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6); margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  #bonus-banner {
+    position: fixed; top: 22%; left: 50%; transform: translateX(-50%);
+    font-size: clamp(28px, 6vw, 52px); font-weight: 900; letter-spacing: 3px;
+    background: linear-gradient(135deg, #ffd54a, #ff9a3d, #ffd54a);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 30px rgba(255, 213, 74, 0.5);
+    z-index: 15; pointer-events: none;
+    animation: bonus-pop 0.6s infinite alternate;
+  }
+  #bonus-banner.hidden { display: none; }
+  @keyframes bonus-pop { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.08); } }
+
+  .shop {
+    margin-top: 26px; width: min(92vw, 640px);
+  }
+  .shop-money {
+    font-size: 20px; font-weight: 700; color: #ffd54a; margin-bottom: 12px;
+  }
+  #shop-cards, #pet-cards, #char-cards {
+    display: flex; gap: 12px;
+    overflow-x: auto; flex-wrap: nowrap;
+    padding: 6px 4px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  #shop-cards::-webkit-scrollbar, #pet-cards::-webkit-scrollbar, #char-cards::-webkit-scrollbar { height: 8px; }
+  #shop-cards::-webkit-scrollbar-thumb, #pet-cards::-webkit-scrollbar-thumb, #char-cards::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.25); border-radius: 4px;
+  }
+  .shop-card-selected { border-color: #7dffb0; box-shadow: 0 0 14px rgba(125, 255, 176, 0.25); }
+  .pet-active { background: linear-gradient(135deg, #7dffb0, #4fd88a); }
+  #theme-toast {
+    position: fixed; top: 130px; left: 50%; transform: translateX(-50%) translateY(-8px);
+    background: rgba(10, 10, 30, 0.7); color: #fff;
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 999px;
+    padding: 10px 26px; font-size: 17px; font-weight: 700;
+    backdrop-filter: blur(6px); z-index: 15; pointer-events: none;
+    opacity: 0; transition: opacity 0.4s, transform 0.4s;
+  }
+  #theme-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .shop-card {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 14px; padding: 14px 16px;
+    flex: 0 0 180px; width: 180px;
+  }
+  .shop-icon { font-size: 30px; margin-bottom: 6px; }
+  .shop-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .shop-level { font-size: 12px; color: #7dd8ff; }
+  .shop-info { font-size: 12.5px; opacity: 0.8; margin-bottom: 10px; min-height: 32px; }
+  .shop-buy {
+    font-size: 14px; font-weight: 700; color: #0a0a1a;
+    background: linear-gradient(135deg, #ffd54a, #ffb63d);
+    border: none; border-radius: 999px; padding: 7px 18px; cursor: pointer;
+  }
+  .shop-buy:disabled { opacity: 0.35; cursor: not-allowed; }
+  .shop-buy:not(:disabled):hover { transform: scale(1.05); }
+  .shop-maxed { font-size: 14px; font-weight: 700; color: #7dffb0; padding: 7px 0; }
+  .earned-line { font-size: 17px; color: #ffd54a; margin-top: 6px; }
+  .btn-secondary {
+    margin-top: 14px; font-size: 16px; font-weight: 700; color: #fff;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 999px; padding: 10px 32px; cursor: pointer;
+    box-shadow: none;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+
+  #music-btn {
+    position: fixed; bottom: 18px; right: 18px; z-index: 30;
+    width: 48px; height: 48px; font-size: 22px;
+    background: rgba(10, 10, 30, 0.55);
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 50%;
+    cursor: pointer; backdrop-filter: blur(6px);
+  }
+  #music-btn:hover { background: rgba(255,255,255,0.15); }
+
+  #item-hud {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 10; pointer-events: none;
+  }
+  .item-badge {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: rgba(10, 10, 30, 0.55);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px; padding: 6px 10px;
+    backdrop-filter: blur(6px);
+  }
+  .item-icon { font-size: 22px; line-height: 1; }
+  .item-bar {
+    width: 44px; height: 5px; border-radius: 3px;
+    background: rgba(255,255,255,0.15); overflow: hidden;
+  }
+  .item-bar-fill { height: 100%; background: linear-gradient(90deg, #7dd8ff, #7dffb0); border-radius: 3px; }
+  .items-hint {
+    margin-top: 18px; font-size: 14px; opacity: 0.8; line-height: 1.9;
+  }
+  #gameover-overlay .title { background: linear-gradient(135deg, #ff7d7d, #ffb86b); -webkit-background-clip: text; background-clip: text; }
+  .final-stats { font-size: 20px; margin-bottom: 24px; line-height: 1.8; }
+  .final-stats .big { font-size: 44px; font-weight: 900; color: #ffd54a; }
+  .new-record { color: #7dffb0; font-weight: 700; animation: pulse 1s infinite alternate; }
+  @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div class="hud">
+  <div class="hud-box" id="score-box">
+    <div class="hud-label">คะแนน</div>
+    <div class="hud-value" id="score-value">0</div>
+  </div>
+  <div class="hud-box" id="coin-box">
+    <div class="hud-label">🪙 เหรียญ</div>
+    <div class="hud-value" id="coin-value">0</div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">สถิติสูงสุด</div>
+    <div class="hud-value" id="best-value">0</div>
+  </div>
+</div>
+
+<div id="hp-wrap">
+  <div id="hp-bar"><div id="hp-fill"></div></div>
+  <div id="hp-text">100 / 100</div>
+</div>
+
+<div id="bonus-banner" class="hidden">✨ BONUS TIME ✨</div>
+
+<div id="theme-toast"></div>
+
+<div id="item-hud"></div>
+
+<div class="overlay" id="menu-overlay">
+  <div class="title">SKY RUNNER</div>
+  <div class="subtitle">วิ่งให้ไกลที่สุด หลบสิ่งกีดขวาง เก็บเหรียญ!</div>
+  <button class="btn" id="start-btn">เริ่มเกม ▶</button>
+  <div class="controls-hint">
+    <span class="key">←</span><span class="key">→</span> หรือ <span class="key">A</span><span class="key">D</span> เปลี่ยนเลน<br>
+    <span class="key">↑</span> / <span class="key">W</span> / <span class="key">Space</span> กระโดด (กดซ้ำกลางอากาศ = ตีลังกา 2 ชั้น!) &nbsp;&nbsp;
+    <span class="key">↓</span> / <span class="key">S</span> สไลด์<br>
+    มือถือ: ปัดซ้าย/ขวา/ขึ้น/ลง
+  </div>
+  <div class="items-hint">
+    🧲 ดูดเหรียญ &nbsp; 🛡️ กันชน 1 ครั้ง &nbsp; 🚀 พุ่งทะลุทุกอย่าง &nbsp; 🧪 ร่างยักษ์ &nbsp; ❤️ ฟื้นเลือด<br>
+    เลือดลดตลอดเวลา — เก็บ ❤️ ระหว่างทาง และวิ่งครบระยะจะได้ ✨ BONUS TIME ✨
+  </div>
+  <div class="shop">
+    <div class="shop-money">💰 เงินสะสม: <span id="money-value">0</span></div>
+    <div class="shop-money" style="margin-top: 4px;">🍪 ตัวละคร</div>
+    <div id="char-cards"></div>
+    <div class="shop-money" style="margin-top: 20px;">⬆️ อัพเกรด</div>
+    <div id="shop-cards"></div>
+    <div class="shop-money" style="margin-top: 20px;">🐾 เพื่อนซี้</div>
+    <div id="pet-cards"></div>
+  </div>
+</div>
+
+<button id="music-btn" title="เปิด/ปิดเพลง">🔊</button>
+
+<div class="overlay hidden" id="gameover-overlay">
+  <div class="title">GAME OVER</div>
+  <div class="final-stats">
+    <div>คะแนน</div>
+    <div class="big" id="final-score">0</div>
+    <div id="record-msg"></div>
+    <div class="earned-line">💰 <span id="earned-money">+0</span></div>
+  </div>
+  <button class="btn" id="restart-btn">เล่นอีกครั้ง ↻</button>
+  <button class="btn-secondary" id="menu-btn">🏪 เมนู / ร้านอัพเกรด</button>
+</div>
+
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
